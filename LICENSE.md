@@ -1,6 +1,6 @@
 The MatrixColorings.jl package is licensed under the MIT "Expat" License:
 
-> Copyright (c) 2015: Mauro Werder.
+> Copyright (c) 2015: Mauro Werder & Miles Lubin.
 >
 > Permission is hereby granted, free of charge, to any person obtaining
 > a copy of this software and associated documentation files (the
@@ -20,3 +20,7 @@ The MatrixColorings.jl package is licensed under the MIT "Expat" License:
 > CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
 > TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 > SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+
+Note this package uses code copied from Miles Lubin's package
+ReverseDiffSparse.jl.
