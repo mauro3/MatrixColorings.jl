@@ -6,6 +6,11 @@ This implements coloring algorithms for matrices.  Should be useful
 for finite difference or automatic differentiation calculations of
 Jacobians and Hessians.
 
+Uses Ragged.jl, which is on BitBucket, add with
+```
+Pkg.clone("git@bitbucket.org:maurow/ragged.jl.git", "Ragged")
+```
+
 Example of numerical Jacobian (see `example/jacobian_eval.jl`):
 
 ```julia
