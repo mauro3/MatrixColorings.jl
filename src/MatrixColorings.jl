@@ -3,11 +3,12 @@ if VERSION < v"0.4.0-dev"
     using Docile
 end
 
-using Ragged
+include("base-fixes.jl")
+using Ragged, ArrayViews
 
 import Base: start, next, done, length
 
-export Graph, Neigh1, Neigh2
+export color_jac, recover_jac!, recover_jac, color2seedmatrix
 
 # this follows "ColPack: Software for Graph Coloring and Related
 # Problems in Scientific Computing" GEBREMEDHIN & et al
@@ -138,6 +139,15 @@ end
 next(n2::Neigh2, state) = (state.item, _get_next(n2, state))
 done(n2::Neigh2, state) = state.n2_state==-1
 
+######
+# Colors
+######
+immutable Color{T}
+    c::Vector{T}
+    dim::Int
+end
+
+
 ############
 ## Jacobians "partial distance-2 coloring"
 ############
@@ -174,11 +184,6 @@ function matrix2bipartie_graph(A::MatrixLike)
     end
     return BiGraph(v, RaggedArray(adj), v1, v2)
 end
-if VERSION < v"0.4.0-dev"
-    # TODO: remove these two for 0.4
-    rowvals(S::SparseMatrixCSC) = S.rowval
-    nzrange(S::SparseMatrixCSC, col::Integer) = S.colptr[col]:(S.colptr[col+1]-1)
-end
 function matrix2bipartie_graph(A::SparseMatrixCSC)
     # This will include all entries of the sparse matrix, even if they
     # happen to be zero.
@@ -214,8 +219,9 @@ used to emphasize that the other vertex set remains uncolored.\"
 Some small testing suggest that the performance of this function is
 within a factor 10 of COLPACK.
 """ ->
-function partial_dist2_coloring(g::BiGraph, part=1)
-    vv = part==1 ? g.v1 : g.v2
+function partial_dist2_coloring(g::BiGraph, dim=2)
+    # dim==2 column coloring
+    vv = dim==1 ? g.v1 : g.v2
 #    vv = ordering(g) # TODO, see $5.  Color-based ordering seems best, $5.6
     nvv = length(vv)
 
@@ -244,9 +250,88 @@ function partial_dist2_coloring(g::BiGraph, part=1)
                 break
             end
         end
-    end    
-    return color
+    end
+    return Color(color, dim)
 end
 
+####
+#
+####
+
+function color2seedmatrix(c::Color, bi::BiGraph)
+    # Returns the seed matrix: B = AS (or B = SA in case of row
+    # coloring)
+    #
+    # S is a sparse matrix as that is useful for recovery
+    dim = c.dim
+    color = c.c
+    nc = maximum(color)
+    vv = dim==1 ? bi.v1 : bi.v2 - bi.v2[1]+1
+    S = zeros(Int8, length(vv), nc) # TODO: could use Bools here?
+#    S = falses(length(vv), nc)
+    for (i,c) in enumerate(color)
+        S[vv[i],c] = 1
+    end
+    S = dim==1 ? S' : S
+    return sparse(S)
+end
+
+# Returns a seedmatrix for a Jacobian matrix.  Dim==2 is a column
+# coloring (default).
+function color_jac(A, dim=2)
+    bi = matrix2bipartie_graph(A)
+    c = partial_dist2_coloring(bi, dim)
+    color2seedmatrix(c, bi)
+end
+
+function recover_jac!(jac::SparseMatrixCSC, Bcol, S, j::Int)
+    # Recovers part of the Jacobian from one column j of its dense
+    # representation B and seed matrix S.  Updates jac in-place.  jac
+    # needs to have the exact sparsity pattern which was used to
+    # create the coloring!
+    #
+    # B    = jac  S
+    # nxp    nxm  mxp
+    #
+    # TODO: really not sure whether this is the best implementation.
+
+    njac = nonzeros(jac)
+    rowjac = rowvals(jac)
+    rowS = rowvals(S)
+    for i in nzrange(S,j)
+        # some of Bcol (=B[:,j]) belongs into jac[:,row]
+        for ii in nzrange(jac,rowS[i])
+            njac[ii] = Bcol[rowjac[ii]]
+        end
+    end
+    nothing
+end
+function recover_jac!(jac::SparseMatrixCSC, B, S)
+    # Recovers the Jacobian from its dense representation B and seed
+    # matrix S.  Updates jac in-place.  jac needs to have the exact
+    # sparsity pattern which was used to create the coloring!
+    #
+    # B    = jac  S
+    # nxp    nxm  mxp
+    #
+    # TODO: really not sure whether this is the best implementation.
+    dim = size(jac,2)==size(S,1) ? 2 : 1  # TODO: this can mess up if n==m==p
+    if dim==1
+        error("not implemented")
+    end
+    njac = nonzeros(jac)
+    rowjac = rowvals(jac)
+    rowS = rowvals(S)
+    for j=1:size(S,2) # columns of S and B
+        # recover_jac!(jac, B[:,j], S, j) # TODO: this makes a copy...
+        for i in nzrange(S,j)
+            # some of Bcol (=B[:,j]) belongs into jac[:,row]
+            for ii in nzrange(jac,rowS[i])
+                njac[ii] = B[rowjac[ii],j]
+            end
+        end
+    end
+    nothing
+end
 
 end # module
