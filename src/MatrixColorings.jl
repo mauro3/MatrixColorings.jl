@@ -8,12 +8,13 @@ using Ragged, ArrayViews
 
 import Base: start, next, done, length
 
-export color_jac, recover_jac!, recover_jac, color2seedmatrix
+export color_jac, recover_jac!, recover_jac, color2seedmatrix, add_delta!, remove_delta!
 
 # this follows "ColPack: Software for Graph Coloring and Related
 # Problems in Scientific Computing" GEBREMEDHIN & et al
 
 typealias MatrixLike Any # maybe have a trait here one day
+typealias VectorLike Any # maybe have a trait here one day
 
 ########
 ## Misc helper functions
@@ -276,6 +277,10 @@ function color2seedmatrix(c::Color, bi::BiGraph)
     return sparse(S)
 end
 
+######
+# Jacobians
+######
+
 # Returns a seedmatrix for a Jacobian matrix.  Dim==2 is a column
 # coloring (default).
 function color_jac(A, dim=2)
@@ -329,6 +334,36 @@ function recover_jac!(jac::SparseMatrixCSC, B, S)
             for ii in nzrange(jac,rowS[i])
                 njac[ii] = B[rowjac[ii],j]
             end
+        end
+    end
+    nothing
+end
+
+function add_delta!(x::VectorLike, S, c, delta)
+    # Adds a delta to all indices of x which correspond to color c of
+    # seedmatrix S.
+    if length(delta)==1
+        for i in nzrange(S,c)
+            x[rowvals(S)[i]] += delta
+        end
+    else
+        for i in nzrange(S,c)
+            ii = rowvals(S)[i]
+            x[ii] += delta[ii]
+        end
+    end
+    nothing
+end
+function remove_delta!(x::VectorLike, S, c, delta)
+    # reverses add_delta!
+    if length(delta)==1
+        for i in nzrange(S,c)
+            x[rowvals(S)[i]] -= delta
+        end
+    else
+        for i in nzrange(S,c)
+            ii = rowvals(S)[i]
+            x[ii] -= delta[ii]
         end
     end
     nothing

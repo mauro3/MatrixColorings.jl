@@ -1,7 +1,11 @@
-# Example evaluating a numerical a Jacobian.  Uses the Brusselator in IVPtestsuite.jl
+
 
 # using PyPlot
 using MatrixColorings
+
+#####
+# Example evaluating a numerical a Jacobian.  Uses the Brusselator in IVPtestsuite.jl
+####
 
 const N = 10^4 # active gridpoints
 dof = 2N # degrees of freedom (boundary points are not free)
@@ -130,7 +134,7 @@ end
 # Non-coloring method:
 ######################
 # Copied & adapted from DASSL:
-# generate a function that computes approximate jacobian using forward
+# generate a function that computes approximate Jacobian using forward
 # finite differences
 if VERSION < v"0.4.0-dev"
     # TODO: remove these two for 0.4
@@ -172,18 +176,16 @@ function numjac_c!(t, y, jac, S)
     dof = length(y)
     f0 = similar(y)
     fn!(t, y, f0)
-    tmpy = similar(y) # d+dy
+    ddy = deepcopy(y) # d+dy
     f1 = similar(y)   # f(d+dy)
     for c in 1:nc
-        copy!(tmpy, y)
-        for i in nzrange(S,c)
-            tmpy[rowvals(S)[i]] += edelta
-        end
-        fn!(t, tmpy, f1)
+        add_delta!(ddy, S, c, edelta)  # adds a delta to all indices of color c
+        fn!(t, ddy, f1)
         for j=1:dof
-            tmpy[j] = (f1[j]-f0[j])/edelta
+            f1[j] = (f1[j]-f0[j])/edelta
         end
-        recover_jac!(jac, tmpy, S, c)
+        recover_jac!(jac, f1, S, c) # recovers the columns of jac which correspond c
+        remove_delta!(ddy, S, c, edelta) # remove delta again
     end
     return nothing
 end
@@ -233,8 +235,6 @@ for y in (y,)
 
 
     @show maximum(dfdy_ana-dfdy_num)
-    
-
     @show maximum(dfdy_ana-dfdy_num_c)
 end
 

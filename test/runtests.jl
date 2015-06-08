@@ -174,7 +174,7 @@ function check_jac(A)
             fill!(nonzeros(jacout), 0)
             println("@time for recovery:")
             @time recover_jac!(jacout, B, S)
-            @test jacout==A
+            @test isequal_sparse(jacout,A)
         end
     end
 end
