@@ -14,17 +14,19 @@ export Graph, Neigh1, Neigh2
 
 typealias MatrixLike Any # maybe have a trait here one day
 
+########
 ## Misc helper functions
-#####
+########
 
 # Allocates all vectors inside a Vector{Vector{T}} and element type
 # eltype(eltype(vec)).
 allocate!{T}(vec::Vector{T}, n::Int) =
     (vec[:] = Vector{T}[ Array(eltype(T), n) for s=1:length(vec)])
 
+#########
 ## Graphs
 #########
-# Reinventing the wheel?
+# Reinventing the wheel!
 
 # Compact storage for an undirected graph.
 # Neighbors of vertex i are adjlist[i]
@@ -136,18 +138,22 @@ end
 next(n2::Neigh2, state) = (state.item, _get_next(n2, state))
 done(n2::Neigh2, state) = state.n2_state==-1
 
-# function Neigh2(g::AGraph, v)
-#     # stopgap until above is fixed
-#     nset = Int[]
-#     for n in Neigh1(g, v)
-#         append!(nset, g.adjlist[:,n])
-#     end
-#     nset = Set(nset)
-#     setdiff!(nset, v)
-#     return nset
-# end
+############
+## Jacobians "partial distance-2 coloring"
+############
 
-# For Jacobians use "partial distance-2 coloring"
+macro _matrix2bipartie_graph()
+    # set-up for function of same name
+    esc(quote
+    nr,nc = size(A)
+    nv = nr+nc
+    v = 1:nv
+    v1 = 1:nr
+    v2 = nr+1:nv
+    adj = Array(Vector{Int}, nv)
+    allocate!(adj, 0)
+    end)
+end
 
 @doc """
 
@@ -157,15 +163,8 @@ the rows and columns of A, respectively, and each nonzero matrix entry
 A_ ij is represented by the edge (r_i , c_j) in E.\"
 
 """ ->
-function gen_bipartie_graph(A::MatrixLike)
-    nr,nc = size(A)
-    nv = nr+nc
-    part = nr+1
-    v = 1:nv
-    v1 = 1:nr
-    v2 = nr+1:nv
-    adj = Array(Vector{Int}, nv)
-    allocate!(adj, 0)
+function matrix2bipartie_graph(A::MatrixLike)
+    @_matrix2bipartie_graph
     for j=1:nc,i=1:nr
         if A[i,j]!=0
             vv1, vv2 = v1[i], v2[j]
@@ -175,25 +174,49 @@ function gen_bipartie_graph(A::MatrixLike)
     end
     return BiGraph(v, RaggedArray(adj), v1, v2)
 end
+if VERSION < v"0.4.0-dev"
+    # TODO: remove these two for 0.4
+    rowvals(S::SparseMatrixCSC) = S.rowval
+    nzrange(S::SparseMatrixCSC, col::Integer) = S.colptr[col]:(S.colptr[col+1]-1)
+end
+function matrix2bipartie_graph(A::SparseMatrixCSC)
+    # This will include all entries of the sparse matrix, even if they
+    # happen to be zero.
+    @_matrix2bipartie_graph
+    for j=1:nc
+        for nz in nzrange(A,j)
+            i = rowvals(A)[nz]
+            vv1, vv2 = v1[i], v2[j]
+            push!(adj[vv1], vv2)
+            push!(adj[vv2], vv1)
+        end
+    end
+    return BiGraph(v, RaggedArray(adj), v1, v2)
+end
 
-@doc """I think sorting can improve the coloring, but no idea how to
+
+@doc """
+I think sorting can improve the coloring, but no idea how to
 sort."""->
 function sort_vertices!(g::AGraph)
     nothing
     # probably need to return a permeation to reverse the sort.
 end
 
-""" 
+@doc """ 
 \"In a bipartite graph G b = (V 1 , V 2 , E), a partial distance-2
 coloring on the vertex set V 1 (or V 2 ) is an assignment of colors to
 the vertices in V 1 (or V 2 ) such that a pair of vertices connected
 by a path of length exactly two edges receives different colors. The
 term partial, which is sometimes omitted when the context is clear, is
 used to emphasize that the other vertex set remains uncolored.\" 
-"""
+
+Some small testing suggest that the performance of this function is
+within a factor 10 of COLPACK.
+""" ->
 function partial_dist2_coloring(g::BiGraph, part=1)
     vv = part==1 ? g.v1 : g.v2
-    #sort_vertices!(g::AGraph)
+#    vv = ordering(g) # TODO, see $5.  Color-based ordering seems best, $5.6
     nvv = length(vv)
 
     # This is the output.  Possible colors range from 1:nnv, indexed
@@ -225,6 +248,5 @@ function partial_dist2_coloring(g::BiGraph, part=1)
     return color
 end
 
-# 4.2. Algorithms for coloring problems on bipartite graphs
 
 end # module
