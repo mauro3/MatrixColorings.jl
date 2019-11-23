@@ -1,5 +1,7 @@
 # MatrixColorings
 
+This functionality is now included in the DiffEq-universe, in particular https://github.com/JuliaDiffEq/SparseDiffTools.jl.
+
 [![Build Status](https://travis-ci.org/mauro3/MatrixColorings.jl.svg?branch=master)](https://travis-ci.org/mauro3/MatrixColorings.jl)
 
 This implements coloring algorithms for matrices.  Should be useful
